@@ -1,32 +1,30 @@
 /* src/index.css */
 
-/* 1. Reset básico para que ocupe toda la pantalla */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
+/* 1. Ajustes básicos de fuente */
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
 }
 
+/* 2. OBLIGATORIO: Quitamos márgenes del body */
 body {
   margin: 0;
   padding: 0;
-  min-width: 100vw;
+  min-width: 320px;
   min-height: 100vh;
-  background-color: #2d3748; /* El mismo color de fondo de tu app */
+  width: 100vw;
+  overflow-x: hidden; /* Evita scroll horizontal innecesario */
 }
 
-/* 2. Importante: Que el contenedor de React (#root) también ocupe todo */
+/* 3. EL CULPABLE: El contenedor #root */
+/* Vite le pone 'max-width: 1280px' y 'margin: 0 auto' por defecto. */
+/* Aquí lo forzamos a ocupar el 100% real. */
 #root {
+  max-width: none !important; /* El !important asegura que nadie nos discuta */
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left; /* Vite suele centrar el texto, lo corregimos */
   width: 100%;
-  min-height: 100vh;
-  margin: 0;
-  padding: 0;
-  /* Quitamos cualquier text-align center o max-width que tuviera antes */
-  max-width: none; 
-  text-align: left;
+  height: 100%;
 }

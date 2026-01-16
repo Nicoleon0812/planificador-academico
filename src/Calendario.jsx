@@ -1,174 +1,252 @@
-import { useState, useEffect } from "react"
-import './Calendario.css'
+// src/Calendario.jsx
+import { useEffect, useState } from 'react'
+import { supabase } from './supabase'
+import * as XLSX from 'xlsx'
+import html2canvas from 'html2canvas'
+
+// Importamos nuestros componentes nuevos
+import { Login } from './components/Login'
+import { Sidebar } from './components/Sidebar'
+import { Toolbar } from './components/Toolbar'
+import { Grilla } from './components/Grilla'
+
+// --- CONSTANTES ---
+const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const BLOQUES = ['08:30 - 09:30', '09:35 - 10:35', '10:55 - 11:50', '11:55 - 12:55', '13:10 - 14:10', '14:30 - 15:30', '15:35 - 16:35', '16:55 - 17:50', '17:55 - 18:55'];
+const PALETA = ['#FFCDD2', '#F8BBD0', '#E1BEE7', '#D1C4E9', '#C5CAE9', '#BBDEFB', '#B3E5FC', '#B2EBF2', '#B2DFDB', '#C8E6C9', '#DCEDC8', '#FFF9C4', '#FFECB3', '#FFE0B2', '#D7CCC8', '#F5F5F5'];
 
 function Calendario() {
-  
-  // 1. ESTADO DE MATERIAS
-  const [materias, setMaterias] = useState(() => {
-    const guardado = localStorage.getItem("horario")
-    if (guardado) {
-        return JSON.parse(guardado)
-    } else {
-        return [
-          { id: 1, nombre: "Cálculo I", profesor: "Samantha", dia: "Lunes", hora: "08:30" },
-          { id: 6, nombre: "Teoría de Números", profesor: "Hetor", dia: "Lunes", hora: "09:00"},
-          { id: 2, nombre: "Prog. Web", profesor: "Nicolás", dia: "Lunes", hora: "10:30" },
-          { id: 3, nombre: "Base de Datos", profesor: "Pedro", dia: "Martes", hora: "08:30" },
-          { id: 4, nombre: "Inglés", profesor: "Ana", dia: "Jueves", hora: "14:30" },
-          { id: 5, nombre: "Física", profesor: "Samantha", dia: "Viernes", hora: "10:00" },
-        ]
-    }
-  })
+  // --- ESTADOS ---
+  const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+  // --- DETECTOR DE TEMA DEL SISTEMA ---
+  // 1. Iniciamos preguntando al sistema si prefiere oscuro
+  const [modoOscuro, setModoOscuro] = useState(() => 
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 
-  // 2. EFECTO: Guardar en localStorage
+  // 2. Un "oído" atento: Si el usuario cambia el tema de su PC mientras usa la app, la app cambia sola.
   useEffect(() => {
-    localStorage.setItem("horario", JSON.stringify(materias))
-  }, [materias])
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    const handleChange = (e) => setModoOscuro(e.matches);
+    
+    // Escuchamos el cambio
+    mediaQuery.addEventListener('change', handleChange);
+    
+    // Limpieza al cerrar
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+  
+  const [usuario, setUsuario] = useState(null)
+  const [nombreUsuario, setNombreUsuario] = useState(null)
+  
+  const [catalogoRamos, setCatalogoRamos] = useState([])
+  const [busqueda, setBusqueda] = useState("")
+  const [ramoSeleccionado, setRamoSeleccionado] = useState(null)
+  const [horarioArmado, setHorarioArmado] = useState([])
+  const [creditosTotales, setCreditosTotales] = useState(0)
 
-  // 3. ESTADOS DEL FORMULARIO
-  const [nuevoNombre, setNuevoNombre] = useState("")
-  const [nuevoProfe, setNuevoProfe] = useState("")
-  const [nuevoDia, setNuevoDia] = useState("Lunes")
-  const [nuevaHora, setNuevaHora] = useState("")
+  // --- TEMA ---
+  const tema = {
+    fondo: modoOscuro ? '#121212' : '#f0f2f5',
+    sidebar: modoOscuro ? '#1e1e1e' : '#f8f9fa',
+    texto: modoOscuro ? '#e0e0e0' : '#2c3e50',
+    textoSecundario: modoOscuro ? '#aaaaaa' : '#666',
+    tarjeta: modoOscuro ? '#2d2d2d' : 'white',
+    borde: modoOscuro ? '#444' : '#ddd',
+    inputFondo: modoOscuro ? '#333' : 'white',
+    inputTexto: modoOscuro ? 'white' : 'black',
+    tablaHeader: modoOscuro ? '#333' : '#e9ecef',
+    bloqueLabel: modoOscuro ? '#252525' : '#f8f9fa'
+  };
 
-  const diasSemana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+  // --- DETECTOR TAMAÑO ---
+  useEffect(() => {
+    const handleResize = () => setEsMovil(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
-  // --- FUNCIONES LÓGICAS ---
+  // --- CARGA INICIAL ---
+  useEffect(() => {
+    async function getAsignaturas() {
+      const { data } = await supabase.from('asignaturas').select('*').order('id')
+      if (data) setCatalogoRamos(data)
+    }
+    getAsignaturas()
+  }, [])
 
-  const eliminarMateria = (idParaBorrar) => {
-    const nuevasMaterias = materias.filter( materia => materia.id !== idParaBorrar )
-    setMaterias(nuevasMaterias)
+  useEffect(() => {
+    if (usuario && catalogoRamos.length > 0) cargarHorarioGuardado();
+  }, [usuario, catalogoRamos])
+
+  // --- LÓGICA DE NEGOCIO ---
+  async function cargarHorarioGuardado() {
+    const { data } = await supabase.from('mis_horarios').select('*').eq('email', usuario)
+    if (data) {
+      let creditos = 0;
+      const reconstruido = data.map(item => {
+        const ramo = catalogoRamos.find(r => r.id === item.ramo_id);
+        return { id_unico: item.id, ramo, dia: item.dia, bloque: item.bloque };
+      }).filter(i => i.ramo);
+
+      // Calcular créditos únicos
+      const unicos = [...new Set(reconstruido.map(h => h.ramo.id))];
+      unicos.forEach(id => {
+         const r = catalogoRamos.find(c => c.id === id);
+         if (r) creditos += r.creditos;
+      });
+      
+      setHorarioArmado(reconstruido);
+      setCreditosTotales(creditos);
+    }
   }
 
-  const agregarMateria = () => {
-    if (!nuevoNombre || !nuevaHora) return alert("Falta nombre u hora")
+  const colocarEnCelda = async (dia, bloque) => {
+    if (!ramoSeleccionado) return;
+    
+    // Validaciones
+    const enCelda = horarioArmado.filter(h => h.dia === dia && h.bloque === bloque);
+    if (enCelda.length >= 2) return alert("⚠️ Máximo 2 ramos por bloque.");
+    if (enCelda.some(h => h.ramo.id === ramoSeleccionado.id)) return;
 
-    const nuevaMateria = {
-      id: Date.now(),
-      nombre: nuevoNombre,
-      profesor: nuevoProfe,
-      dia: nuevoDia,
-      hora: nuevaHora
+    // Calcular créditos si es nuevo
+    const yaEstaba = horarioArmado.some(h => h.ramo.id === ramoSeleccionado.id);
+    if (!yaEstaba) {
+       if (creditosTotales + ramoSeleccionado.creditos > 40) return alert("⚠️ Límite de créditos excedido.");
+       setCreditosTotales(creditosTotales + ramoSeleccionado.creditos);
     }
 
-    setMaterias([...materias, nuevaMateria])
-    
-    // Limpiar campos
-    setNuevoNombre("")
-    setNuevoProfe("")
-    setNuevaHora("")
+    // Guardar en BD
+    const { data, error } = await supabase.from('mis_horarios').insert({ email: usuario, ramo_id: ramoSeleccionado.id, dia, bloque }).select();
+    if (!error) {
+       setHorarioArmado([...horarioArmado, { id_unico: data[0].id, ramo: ramoSeleccionado, dia, bloque }]);
+    }
   }
 
-  // --- NUEVO: LÓGICA DE COLORES INTELIGENTES ---
-  const obtenerColor = (nombreMateria) => {
-    if (!nombreMateria) return "#a0aec0" // Protección por si viene vacío
-    const nombre = nombreMateria.toLowerCase()
-
-    if (nombre.includes("cálculo") || nombre.includes("matemática")) return "#63b3ed" // Azul
-    if (nombre.includes("prog") || nombre.includes("web") || nombre.includes("computación")) return "#48bb78" // Verde
-    if (nombre.includes("base de datos") || nombre.includes("datos")) return "#ed8936" // Naranja
-    if (nombre.includes("inglés") || nombre.includes("idioma")) return "#f56565" // Rojo
-    if (nombre.includes("física") || nombre.includes("ciencia")) return "#9f7aea" // Morado
-    
-    return "#a0aec0" // Gris por defecto
+  const quitarDeCelda = async (item) => {
+    const { error } = await supabase.from('mis_horarios').delete().eq('id', item.id_unico);
+    if (!error) {
+       const nuevo = horarioArmado.filter(i => i.id_unico !== item.id_unico);
+       setHorarioArmado(nuevo);
+       // Recalcular créditos si se fue el ramo del todo
+       if (!nuevo.some(i => i.ramo.id === item.ramo.id)) {
+          setCreditosTotales(creditosTotales - item.ramo.creditos);
+       }
+    }
   }
 
-  // --- RENDERIZADO ---
+  const limpiarTodo = async () => {
+     if(!window.confirm("¿Borrar todo?")) return;
+     await supabase.from('mis_horarios').delete().eq('email', usuario);
+     setHorarioArmado([]);
+     setCreditosTotales(0);
+  }
+
+  // --- EXPORTACIONES ---
+  const exportarExcel = () => {
+    const datos = BLOQUES.map(bloque => {
+      const fila = { Horario: bloque };
+      DIAS.forEach(dia => {
+        const items = horarioArmado.filter(h => h.dia === dia && h.bloque === bloque);
+        fila[dia] = items.map(i => i.ramo.nombre).join(' / ');
+      });
+      return fila;
+    });
+    const libro = XLSX.utils.book_new();
+    const hoja = XLSX.utils.json_to_sheet(datos);
+    XLSX.utils.book_append_sheet(libro, hoja, "Horario");
+    XLSX.writeFile(libro, `Horario_${nombreUsuario}.xlsx`);
+  }
+
+  const exportarImagen = async () => {
+    const original = document.getElementById('horario-screenshot');
+    if (!original) return;
+    
+    // Clonación para foto limpia
+    const clone = original.cloneNode(true);
+    Object.assign(clone.style, {
+        position: 'absolute', top: '0', left: '-9999px', width: '1500px', zIndex: '-1',
+        background: tema.tarjeta, color: tema.texto
+    });
+    // Arreglar estilos internos del clon
+    const thead = clone.querySelector('thead');
+    if(thead) { thead.style.position = 'static'; }
+    const table = clone.querySelector('table');
+    if(table) { table.style.width = '100%'; table.style.tableLayout = 'fixed'; }
+
+    document.body.appendChild(clone);
+    
+    try {
+        const canvas = await html2canvas(clone, { scale: 2, backgroundColor: tema.tarjeta });
+        const link = document.createElement('a');
+        link.download = `Horario_${nombreUsuario}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+    } catch(e) { console.error(e); alert("Error al exportar imagen"); } 
+    finally { document.body.removeChild(clone); }
+  }
+
+  // Utilidad color
+  const obtenerColor = (nombre) => {
+    let hash = 0;
+    for (let i = 0; i < nombre.length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+    return PALETA[Math.abs(hash) % PALETA.length];
+  };
+
+  // --- RENDERIZADO PRINCIPAL ---
+  // --- RENDERIZADO PRINCIPAL ---
+  if (!usuario) return (
+    <Login 
+      onLogin={(email, nombre) => { setUsuario(email); setNombreUsuario(nombre); }} 
+      tema={tema} 
+      // 👇 AGREGAMOS ESTAS DOS LÍNEAS 👇
+      modoOscuro={modoOscuro}
+      setModoOscuro={setModoOscuro}
+    />
+  );
+
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', height: '100vh', width: '100vw', fontFamily: 'Segoe UI', background: tema.fondo, color: tema.texto }}>
       
-      <h2 style={{ textAlign: 'center', color: 'white' }}>📅 Mi Horario Académico</h2>
-      
-      {/* FORMULARIO */}
-      <div className="formulario-container">
+      <Sidebar 
+        catalogo={catalogoRamos} 
+        busqueda={busqueda} 
+        setBusqueda={setBusqueda}
+        ramoSeleccionado={ramoSeleccionado}
+        onSelectRamo={(r) => setRamoSeleccionado(ramoSeleccionado?.id === r.id ? null : r)}
+        usuario={nombreUsuario}
+        onLogout={() => { setUsuario(null); setNombreUsuario(null); }}
+        tema={tema}
+        esMovil={esMovil}
+        menuAbierto={menuMovilAbierto}
+        setMenuAbierto={setMenuMovilAbierto}
+      />
+
+      <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         
-        <input 
-          className="input-form"
-          placeholder="Materia (ej: Historia)" 
-          value={nuevoNombre}
-          onChange={(e) => setNuevoNombre(e.target.value)}
+        <Toolbar 
+           creditos={creditosTotales}
+           modoOscuro={modoOscuro}
+           setModoOscuro={setModoOscuro}
+           onLimpiar={limpiarTodo}
+           onExportarExcel={exportarExcel}
+           onExportarFoto={exportarImagen}
+           tema={tema}
+           esMovil={esMovil}
         />
 
-        <input 
-          className="input-form"
-          placeholder="Profesor" 
-          value={nuevoProfe}
-          onChange={(e) => setNuevoProfe(e.target.value)}
+        <Grilla 
+           horario={horarioArmado}
+           bloques={BLOQUES}
+           dias={DIAS}
+           onCeldaClick={colocarEnCelda}
+           onQuitarRamo={quitarDeCelda}
+           ramoSeleccionado={ramoSeleccionado}
+           obtenerColor={obtenerColor}
+           tema={tema}
         />
-
-        <select 
-          className="input-form"
-          value={nuevoDia} 
-          onChange={(e) => setNuevoDia(e.target.value)}
-        >
-          {diasSemana.map(dia => <option key={dia} value={dia}>{dia}</option>)}
-        </select>
-
-        {/* Input de Hora Blindado */}
-        <div className="input-wrapper">
-          <input 
-            type="time" 
-            className="input-form"
-            style={{ width: '100%', height: '100%' }}
-            value={nuevaHora}
-            onChange={(e) => setNuevaHora(e.target.value)}
-          />
-          {!nuevaHora && (
-            <span className="placeholder-fantasma">Hora de clase</span>
-          )}
-        </div>
-
-        <button className="btn-agregar" onClick={agregarMateria}>
-          + Agregar Clase
-        </button>
-
-      </div>
-
-      {/* GRILLA CALENDARIO */}
-      <div className="grilla-calendario">
-        
-        {diasSemana.map((dia) => { 
-          // Filtrar y Ordenar
-          const clasesDelDia = materias.filter(materia => materia.dia === dia)
-          clasesDelDia.sort((a, b) => a.hora.padStart(5,'0').localeCompare(b.hora.padStart(5, '0')))
-
-          return (
-            <div key={dia} className="columna-dia">
-              <h3 className="titulo-dia">{dia}</h3>
-
-              {clasesDelDia.length > 0 ? (
-                clasesDelDia.map((materia) => (
-                    
-                    // AQUI ESTÁ EL CAMBIO DE COLOR
-                    <div 
-                      key={materia.id} 
-                      className="tarjeta-materia"
-                      style={{ borderLeft: `5px solid ${obtenerColor(materia.nombre)}` }}
-                    >
-                      <h4 style={{ color: '#fff', margin: 0 }}>{materia.nombre}</h4>
-                      
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginTop: '5px', color: '#cbd5e0' }}>
-                          <span>⏰ {materia.hora}</span>
-                          <span>👤 {materia.profesor}</span>
-                      </div>
-                      
-                      <button 
-                          className="btn-eliminar"
-                          onClick={ () => eliminarMateria(materia.id) }>
-                          Eliminar
-                      </button>
-                    </div>
-
-                ))
-              ) : (
-                <div style={{ textAlign: 'center', color: 'gray', marginTop: '20px', fontStyle: 'italic' }}>
-                   💤 Día Libre
-                </div>
-              )}
-
-            </div>
-          )
-        })}
 
       </div>
     </div>
