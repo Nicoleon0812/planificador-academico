@@ -169,3 +169,96 @@
     margin-bottom: 10px; /* Un poco de aire abajo en celular */
   }
 }
+
+/* --- AGREGAR AL FINAL DE Calendario.css --- */
+
+/* Fondo oscuro que tapa todo */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(5px);
+}
+
+/* La cajita blanca/oscura */
+.modal-content {
+  background-color: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.dark-mode .modal-content {
+  background-color: #1a202c;
+  color: white;
+  border: 1px solid #2d3748;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: #c53030; /* Rojo administrativo */
+}
+
+.input-clave {
+  width: 100%;
+  padding: 12px;
+  margin: 20px 0;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.btn-acceder {
+  background-color: #c53030;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.btn-cancelar {
+  background-color: #718096;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+/* Botón flotante para Nicolás */
+.btn-flotante-admin {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: #2d3748;
+  color: white;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2px solid #4a5568;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  z-index: 1000;
+  font-size: 24px;
+}
+.btn-flotante-admin:hover {
+  background-color: #c53030;
+  transform: scale(1.1);
+}

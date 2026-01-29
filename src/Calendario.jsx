@@ -1,46 +1,51 @@
-// src/Calendario.jsx
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
 
-// Importamos nuestros componentes nuevos
+// Importamos tus componentes
 import { Login } from './components/Login'
 import { Sidebar } from './components/Sidebar'
 import { Toolbar } from './components/Toolbar'
 import { Grilla } from './components/Grilla'
+// Importamos el Panel de Administración REAL
+import { PanelAdmin } from './components/PanelAdmin' 
 
 // --- CONSTANTES ---
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const BLOQUES = ['08:30 - 09:30', '09:35 - 10:35', '10:55 - 11:50', '11:55 - 12:55', '13:10 - 14:10', '14:30 - 15:30', '15:35 - 16:35', '16:55 - 17:50', '17:55 - 18:55'];
 const PALETA = ['#FFCDD2', '#F8BBD0', '#E1BEE7', '#D1C4E9', '#C5CAE9', '#BBDEFB', '#B3E5FC', '#B2EBF2', '#B2DFDB', '#C8E6C9', '#DCEDC8', '#FFF9C4', '#FFECB3', '#FFE0B2', '#D7CCC8', '#F5F5F5'];
 
+// 👇 TUS CORREOS DE ADMINISTRADOR 👇
+const EMAIL_CECILIA = 'cmendoza@ucm.cl';
+// ¡CAMBIA ESTO POR TU CORREO REAL! 👇
+const EMAIL_NICOLAS = 'nicolas.leon@alumnos.ucm.cl'; 
+
 function Calendario() {
   // --- ESTADOS ---
   const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
-  // --- DETECTOR DE TEMA DEL SISTEMA ---
-  // 1. Iniciamos preguntando al sistema si prefiere oscuro
+  
+  // Tema Oscuro
   const [modoOscuro, setModoOscuro] = useState(() => 
     window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
   );
 
-  // 2. Un "oído" atento: Si el usuario cambia el tema de su PC mientras usa la app, la app cambia sola.
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
     const handleChange = (e) => setModoOscuro(e.matches);
-    
-    // Escuchamos el cambio
     mediaQuery.addEventListener('change', handleChange);
-    
-    // Limpieza al cerrar
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
   
   const [usuario, setUsuario] = useState(null)
   const [nombreUsuario, setNombreUsuario] = useState(null)
   
+  // --- ESTADOS DE ADMINISTRACIÓN 🔐 ---
+  const [esAdmin, setEsAdmin] = useState(false); 
+  const [mostrarModalClave, setMostrarModalClave] = useState(false); 
+  const [inputClave, setInputClave] = useState("");
+
   const [catalogoRamos, setCatalogoRamos] = useState([])
   const [busqueda, setBusqueda] = useState("")
   const [ramoSeleccionado, setRamoSeleccionado] = useState(null)
@@ -81,6 +86,26 @@ function Calendario() {
     if (usuario && catalogoRamos.length > 0) cargarHorarioGuardado();
   }, [usuario, catalogoRamos])
 
+  // --- SEGURIDAD AUTOMÁTICA (CECILIA) ---
+  useEffect(() => {
+    if (usuario === EMAIL_CECILIA) {
+      setMostrarModalClave(true); 
+    }
+  }, [usuario]);
+
+  // --- VALIDAR CLAVE ---
+  const manejarIntentoAcceso = (e) => {
+    e.preventDefault();
+    if (inputClave === import.meta.env.VITE_ADMIN_PASSWORD) {
+      setEsAdmin(true);
+      setMostrarModalClave(false);
+      setInputClave("");
+    } else {
+      alert("⛔ Clave Incorrecta");
+      setInputClave("");
+    }
+  };
+
   // --- LÓGICA DE NEGOCIO ---
   async function cargarHorarioGuardado() {
     const { data } = await supabase.from('mis_horarios').select('*').eq('email', usuario)
@@ -91,7 +116,6 @@ function Calendario() {
         return { id_unico: item.id, ramo, dia: item.dia, bloque: item.bloque };
       }).filter(i => i.ramo);
 
-      // Calcular créditos únicos
       const unicos = [...new Set(reconstruido.map(h => h.ramo.id))];
       unicos.forEach(id => {
          const r = catalogoRamos.find(c => c.id === id);
@@ -105,20 +129,16 @@ function Calendario() {
 
   const colocarEnCelda = async (dia, bloque) => {
     if (!ramoSeleccionado) return;
-    
-    // Validaciones
     const enCelda = horarioArmado.filter(h => h.dia === dia && h.bloque === bloque);
     if (enCelda.length >= 2) return alert("⚠️ Máximo 2 ramos por bloque.");
     if (enCelda.some(h => h.ramo.id === ramoSeleccionado.id)) return;
 
-    // Calcular créditos si es nuevo
     const yaEstaba = horarioArmado.some(h => h.ramo.id === ramoSeleccionado.id);
     if (!yaEstaba) {
        if (creditosTotales + ramoSeleccionado.creditos > 40) return alert("⚠️ Límite de créditos excedido.");
        setCreditosTotales(creditosTotales + ramoSeleccionado.creditos);
     }
 
-    // Guardar en BD
     const { data, error } = await supabase.from('mis_horarios').insert({ email: usuario, ramo_id: ramoSeleccionado.id, dia, bloque }).select();
     if (!error) {
        setHorarioArmado([...horarioArmado, { id_unico: data[0].id, ramo: ramoSeleccionado, dia, bloque }]);
@@ -130,7 +150,6 @@ function Calendario() {
     if (!error) {
        const nuevo = horarioArmado.filter(i => i.id_unico !== item.id_unico);
        setHorarioArmado(nuevo);
-       // Recalcular créditos si se fue el ramo del todo
        if (!nuevo.some(i => i.ramo.id === item.ramo.id)) {
           setCreditosTotales(creditosTotales - item.ramo.creditos);
        }
@@ -163,21 +182,17 @@ function Calendario() {
   const exportarImagen = async () => {
     const original = document.getElementById('horario-screenshot');
     if (!original) return;
-    
-    // Clonación para foto limpia
     const clone = original.cloneNode(true);
     Object.assign(clone.style, {
         position: 'absolute', top: '0', left: '-9999px', width: '1500px', zIndex: '-1',
         background: tema.tarjeta, color: tema.texto
     });
-    // Arreglar estilos internos del clon
     const thead = clone.querySelector('thead');
     if(thead) { thead.style.position = 'static'; }
     const table = clone.querySelector('table');
     if(table) { table.style.width = '100%'; table.style.tableLayout = 'fixed'; }
 
     document.body.appendChild(clone);
-    
     try {
         const canvas = await html2canvas(clone, { scale: 2, backgroundColor: tema.tarjeta });
         const link = document.createElement('a');
@@ -188,7 +203,6 @@ function Calendario() {
     finally { document.body.removeChild(clone); }
   }
 
-  // Utilidad color
   const obtenerColor = (nombre) => {
     let hash = 0;
     for (let i = 0; i < nombre.length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
@@ -196,59 +210,104 @@ function Calendario() {
   };
 
   // --- RENDERIZADO PRINCIPAL ---
-  // --- RENDERIZADO PRINCIPAL ---
   if (!usuario) return (
     <Login 
       onLogin={(email, nombre) => { setUsuario(email); setNombreUsuario(nombre); }} 
       tema={tema} 
-      // 👇 AGREGAMOS ESTAS DOS LÍNEAS 👇
       modoOscuro={modoOscuro}
       setModoOscuro={setModoOscuro}
     />
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', height: '100vh', width: '100vw', fontFamily: 'Segoe UI', background: tema.fondo, color: tema.texto }}>
+    <div className={modoOscuro ? "dark-mode" : ""} style={{ display: 'flex', flexDirection: esMovil ? 'column' : 'row', height: '100vh', width: '100vw', fontFamily: 'Segoe UI', background: tema.fondo, color: tema.texto }}>
       
-      <Sidebar 
-        catalogo={catalogoRamos} 
-        busqueda={busqueda} 
-        setBusqueda={setBusqueda}
-        ramoSeleccionado={ramoSeleccionado}
-        onSelectRamo={(r) => setRamoSeleccionado(ramoSeleccionado?.id === r.id ? null : r)}
-        usuario={nombreUsuario}
-        onLogout={() => { setUsuario(null); setNombreUsuario(null); }}
-        tema={tema}
-        esMovil={esMovil}
-        menuAbierto={menuMovilAbierto}
-        setMenuAbierto={setMenuMovilAbierto}
-      />
+      {/* 🔐 MODAL DE CONTRASEÑA */}
+      {mostrarModalClave && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">Acceso Administrativo</h2>
+            <p>Este modo requiere credenciales de Secretario/a.</p>
+            <form onSubmit={manejarIntentoAcceso}>
+              <input 
+                type="password" 
+                className="input-clave"
+                placeholder="Ingrese Clave Maestra"
+                value={inputClave}
+                onChange={(e) => setInputClave(e.target.value)}
+                autoFocus
+              />
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <button type="submit" className="btn-acceder">Entrar</button>
+                {usuario !== EMAIL_CECILIA && (
+                  <button type="button" className="btn-cancelar" onClick={() => setMostrarModalClave(false)}>Cancelar</button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-      <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        
-        <Toolbar 
-           creditos={creditosTotales}
+      {/* 🔘 BOTÓN FLOTANTE SOLO PARA NICOLÁS */}
+      {usuario === EMAIL_NICOLAS && !esAdmin && (
+        <button 
+          className="btn-flotante-admin" 
+          onClick={() => setMostrarModalClave(true)}
+          title="Activar Modo Edición"
+        >
+          ⚙️
+        </button>
+      )}
+
+      {/* --- CONTENIDO PRINCIPAL --- */}
+      {esAdmin ? (
+        // ✅ AQUÍ ESTÁ EL CAMBIO IMPORTANTE: CARGAMOS EL PANEL REAL
+        <PanelAdmin 
+           catalogo={catalogoRamos} 
+           onSalir={() => setEsAdmin(false)} 
            modoOscuro={modoOscuro}
-           setModoOscuro={setModoOscuro}
-           onLimpiar={limpiarTodo}
-           onExportarExcel={exportarExcel}
-           onExportarFoto={exportarImagen}
-           tema={tema}
-           esMovil={esMovil}
         />
+      ) : (
+        // VISTA ESTUDIANTE NORMAL
+        <>
+          <Sidebar 
+            catalogo={catalogoRamos} 
+            busqueda={busqueda} 
+            setBusqueda={setBusqueda}
+            ramoSeleccionado={ramoSeleccionado}
+            onSelectRamo={(r) => setRamoSeleccionado(ramoSeleccionado?.id === r.id ? null : r)}
+            usuario={nombreUsuario}
+            onLogout={() => { setUsuario(null); setNombreUsuario(null); setEsAdmin(false); }}
+            tema={tema}
+            esMovil={esMovil}
+            menuAbierto={menuMovilAbierto}
+            setMenuAbierto={setMenuMovilAbierto}
+          />
 
-        <Grilla 
-           horario={horarioArmado}
-           bloques={BLOQUES}
-           dias={DIAS}
-           onCeldaClick={colocarEnCelda}
-           onQuitarRamo={quitarDeCelda}
-           ramoSeleccionado={ramoSeleccionado}
-           obtenerColor={obtenerColor}
-           tema={tema}
-        />
-
-      </div>
+          <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Toolbar 
+               creditos={creditosTotales}
+               modoOscuro={modoOscuro}
+               setModoOscuro={setModoOscuro}
+               onLimpiar={limpiarTodo}
+               onExportarExcel={exportarExcel}
+               onExportarFoto={exportarImagen}
+               tema={tema}
+               esMovil={esMovil}
+            />
+            <Grilla 
+               horario={horarioArmado}
+               bloques={BLOQUES}
+               dias={DIAS}
+               onCeldaClick={colocarEnCelda}
+               onQuitarRamo={quitarDeCelda}
+               ramoSeleccionado={ramoSeleccionado}
+               obtenerColor={obtenerColor}
+               tema={tema}
+            />
+          </div>
+        </>
+      )}
     </div>
   )
 }
