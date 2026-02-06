@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabase';
 
+import { CalculadoraNotas } from './CalculadoraNotas';
+
 export function AvanceCurricular({ emailEstudiante, catalogo, modoOscuro }) {
   const [historial, setHistorial] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -10,6 +12,7 @@ export function AvanceCurricular({ emailEstudiante, catalogo, modoOscuro }) {
 
   // Modal simplificado
   const [ramoEditando, setRamoEditando] = useState(null);
+  const [mostrarCalculadora, setMostrarCalculadora] = useState(false);
   const [notaInput, setNotaInput] = useState('');
 
   const tema = {
@@ -253,7 +256,16 @@ export function AvanceCurricular({ emailEstudiante, catalogo, modoOscuro }) {
             <button onClick={guardarInteligente} style={{width:'100%', padding:'12px', borderRadius:'8px', border:'none', background:'#3182ce', color:'white', fontWeight:'bold', fontSize:'1rem', cursor:'pointer', marginBottom:'10px'}}>
               Guardar Nota
             </button>
-            
+            <button 
+                onClick={() => setMostrarCalculadora(true)}
+                style={{
+                    width:'100%', padding:'10px', borderRadius:'8px', border:'2px dashed #48bb78', 
+                    background:'transparent', color: modoOscuro ? '#48bb78' : '#2f855a', fontWeight:'bold', 
+                    cursor:'pointer', marginBottom:'15px', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px'
+                }}
+            >
+               🧮 Calculadora de Notas
+            </button>
             <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.85rem', marginTop:'10px'}}>
                 <span onClick={guardarComoCursando} style={{color:'#4299e1', cursor:'pointer', textDecoration:'underline'}}>Solo estoy cursando</span>
                 <span onClick={eliminarRegistro} style={{color:'#e53e3e', cursor:'pointer'}}>Borrar registro</span>
@@ -262,6 +274,14 @@ export function AvanceCurricular({ emailEstudiante, catalogo, modoOscuro }) {
             <button onClick={() => setRamoEditando(null)} style={{marginTop:'20px', background:'transparent', border:'none', color: tema.texto, opacity:0.5, cursor:'pointer'}}>Cancelar</button>
           </div>
         </div>
+      )}
+      {mostrarCalculadora && ramoEditando && (
+          <CalculadoraNotas 
+             emailEstudiante={emailEstudiante}
+             ramo={ramoEditando}
+             modoOscuro={modoOscuro}
+             onClose={() => setMostrarCalculadora(false)}
+          />
       )}
     </div>
   );
