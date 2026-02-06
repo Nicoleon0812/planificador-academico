@@ -12,6 +12,7 @@ import { PanelAdmin } from './components/PanelAdmin'
 
 // 👇 IMPORTAMOS EL NUEVO COMPONENTE DE EVENTOS 👇
 import { CalendarioEventos } from './components/CalendarioEventos'
+import { AvanceCurricular } from './components/AvanceCurricular'
 
 // --- CONSTANTES ---
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -299,6 +300,7 @@ function Calendario() {
                  onExportarFoto={exportarImagen}
                  tema={tema}
                  esMovil={esMovil}
+                 
               />
             )}
 
@@ -326,6 +328,17 @@ function Calendario() {
                >
                  🗓️ Calendario Eventos
                </button>
+               <button 
+                  onClick={() => setModoVista('avance')}
+                  style={{
+                    padding: '8px 20px', borderRadius: '5px', border: 'none', cursor: 'pointer', fontWeight: 'bold',
+                    backgroundColor: modoVista === 'avance' ? '#48bb78' : tema.tarjeta,
+                    color: modoVista === 'avance' ? 'white' : tema.texto,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+               >
+                 📊 Mi Progreso
+               </button>
             </div>
 
             {/* 👇 CONTENIDO SEGÚN VISTA 👇 */}
@@ -340,9 +353,17 @@ function Calendario() {
                    obtenerColor={obtenerColor}
                    tema={tema}
                 />
-            ) : (
+            ) : modoVista === 'mensual' ? (
                 <div style={{flex: 1, overflowY: 'auto', background: tema.tarjeta, borderRadius: '8px', padding: '10px'}}>
                    <CalendarioEventos emailEstudiante={usuario} modoOscuro={modoOscuro} />
+                </div>
+            ) : (
+                <div style={{flex: 1, overflowY: 'auto', background: tema.tarjeta, borderRadius: '8px'}}>
+                  <AvanceCurricular
+                    emailEstudiante={usuario}
+                    catalogo={catalogoRamos}
+                    modoOscuro={modoOscuro}
+                  />
                 </div>
             )}
             
