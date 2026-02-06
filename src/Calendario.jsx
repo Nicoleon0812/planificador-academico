@@ -8,17 +8,17 @@ import { Login } from './components/Login'
 import { Sidebar } from './components/Sidebar'
 import { Toolbar } from './components/Toolbar'
 import { Grilla } from './components/Grilla'
-// Importamos el Panel de Administración REAL
-import { PanelAdmin } from './components/PanelAdmin' 
+import { PanelAdmin } from './components/PanelAdmin'
+
+// 👇 IMPORTAMOS EL NUEVO COMPONENTE DE EVENTOS 👇
+import { CalendarioEventos } from './components/CalendarioEventos'
 
 // --- CONSTANTES ---
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-const BLOQUES = ['08:30 - 09:30', '09:35 - 10:35', '10:55 - 11:50', '11:55 - 12:55', '13:10 - 14:10', '14:30 - 15:30', '15:35 - 16:35', '16:55 - 17:50', '17:55 - 18:55'];
+const BLOQUES = ['08:30 - 09:30', '09:35 - 10:35', '10:50 - 11:50', '11:55 - 12:55', '13:10 - 14:10', '14:30 - 15:30', '15:35 - 16:35', '16:50 - 17:50', '17:55 - 18:55'];
 const PALETA = ['#FFCDD2', '#F8BBD0', '#E1BEE7', '#D1C4E9', '#C5CAE9', '#BBDEFB', '#B3E5FC', '#B2EBF2', '#B2DFDB', '#C8E6C9', '#DCEDC8', '#FFF9C4', '#FFECB3', '#FFE0B2', '#D7CCC8', '#F5F5F5'];
 
-// 👇 TUS CORREOS DE ADMINISTRADOR 👇
 const EMAIL_CECILIA = 'cmendoza@ucm.cl';
-// ¡CAMBIA ESTO POR TU CORREO REAL! 👇
 const EMAIL_NICOLAS = 'nicolas.leon@alumnos.ucm.cl'; 
 
 function Calendario() {
@@ -26,6 +26,9 @@ function Calendario() {
   const [esMovil, setEsMovil] = useState(window.innerWidth < 768);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   
+  // Estado para cambiar entre "Horario Semanal" y "Calendario Mensual"
+  const [modoVista, setModoVista] = useState('semanal'); // 'semanal' | 'mensual'
+
   // Tema Oscuro
   const [modoOscuro, setModoOscuro] = useState(() => 
     window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -135,7 +138,7 @@ function Calendario() {
 
     const yaEstaba = horarioArmado.some(h => h.ramo.id === ramoSeleccionado.id);
     if (!yaEstaba) {
-       if (creditosTotales + ramoSeleccionado.creditos > 40) return alert("⚠️ Límite de créditos excedido.");
+       if (creditosTotales + ramoSeleccionado.creditos > 35) return alert("⚠️ Límite de créditos excedido.");
        setCreditosTotales(creditosTotales + ramoSeleccionado.creditos);
     }
 
@@ -261,7 +264,6 @@ function Calendario() {
 
       {/* --- CONTENIDO PRINCIPAL --- */}
       {esAdmin ? (
-        // ✅ AQUÍ ESTÁ EL CAMBIO IMPORTANTE: CARGAMOS EL PANEL REAL
         <PanelAdmin 
            catalogo={catalogoRamos} 
            onSalir={() => setEsAdmin(false)} 
@@ -285,26 +287,65 @@ function Calendario() {
           />
 
           <div style={{ flex: 1, padding: '10px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Toolbar 
-               creditos={creditosTotales}
-               modoOscuro={modoOscuro}
-               setModoOscuro={setModoOscuro}
-               onLimpiar={limpiarTodo}
-               onExportarExcel={exportarExcel}
-               onExportarFoto={exportarImagen}
-               tema={tema}
-               esMovil={esMovil}
-            />
-            <Grilla 
-               horario={horarioArmado}
-               bloques={BLOQUES}
-               dias={DIAS}
-               onCeldaClick={colocarEnCelda}
-               onQuitarRamo={quitarDeCelda}
-               ramoSeleccionado={ramoSeleccionado}
-               obtenerColor={obtenerColor}
-               tema={tema}
-            />
+            
+            {/* HERRAMIENTAS (TOOLBAR) - SOLO VISIBLE EN MODO SEMANAL */}
+            {modoVista === 'semanal' && (
+              <Toolbar 
+                 creditos={creditosTotales}
+                 modoOscuro={modoOscuro}
+                 setModoOscuro={setModoOscuro}
+                 onLimpiar={limpiarTodo}
+                 onExportarExcel={exportarExcel}
+                 onExportarFoto={exportarImagen}
+                 tema={tema}
+                 esMovil={esMovil}
+              />
+            )}
+
+            {/* 👇 SELECTOR DE VISTAS (PESTAÑAS) 👇 */}
+            <div style={{display: 'flex', gap: '10px', margin: '0 0 10px 10px'}}>
+               <button 
+                  onClick={() => setModoVista('semanal')}
+                  style={{
+                    padding: '8px 20px', borderRadius: '5px', border: 'none', cursor: 'pointer', fontWeight: 'bold',
+                    backgroundColor: modoVista === 'semanal' ? '#3182ce' : tema.tarjeta,
+                    color: modoVista === 'semanal' ? 'white' : tema.texto,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+               >
+                 📅 Horario Semanal
+               </button>
+               <button 
+                  onClick={() => setModoVista('mensual')}
+                  style={{
+                    padding: '8px 20px', borderRadius: '5px', border: 'none', cursor: 'pointer', fontWeight: 'bold',
+                    backgroundColor: modoVista === 'mensual' ? '#e53e3e' : tema.tarjeta,
+                    color: modoVista === 'mensual' ? 'white' : tema.texto,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+               >
+                 🗓️ Calendario Eventos
+               </button>
+            </div>
+
+            {/* 👇 CONTENIDO SEGÚN VISTA 👇 */}
+            {modoVista === 'semanal' ? (
+                <Grilla 
+                   horario={horarioArmado}
+                   bloques={BLOQUES}
+                   dias={DIAS}
+                   onCeldaClick={colocarEnCelda}
+                   onQuitarRamo={quitarDeCelda}
+                   ramoSeleccionado={ramoSeleccionado}
+                   obtenerColor={obtenerColor}
+                   tema={tema}
+                />
+            ) : (
+                <div style={{flex: 1, overflowY: 'auto', background: tema.tarjeta, borderRadius: '8px', padding: '10px'}}>
+                   <CalendarioEventos emailEstudiante={usuario} modoOscuro={modoOscuro} />
+                </div>
+            )}
+            
           </div>
         </>
       )}

@@ -6,7 +6,7 @@ export function Toolbar({ creditos, modoOscuro, setModoOscuro, onLimpiar, onExpo
       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
          {/* Contador Créditos */}
          <div style={{ padding: '5px 10px', background: creditos > 40 ? '#dc3545' : '#28a745', color: 'white', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.8rem' }}>
-            {creditos}/40
+            {creditos}/35
          </div>
 
          {/* Switch Tema */}
